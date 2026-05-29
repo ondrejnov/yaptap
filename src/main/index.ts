@@ -23,6 +23,12 @@ function configureRuntimePaths(): void {
   }
   app.commandLine.appendSwitch('disable-gpu-shader-disk-cache')
   app.commandLine.appendSwitch('disable-http-cache')
+
+  // macOS: ANGLE Metal backend spamuje stderr `eglQueryDeviceAttribEXT` v dev modu.
+  // Přepnutí na GL backend ten nekonečný log zastaví bez vypnutí HW akcelerace.
+  if (process.platform === 'darwin') {
+    app.commandLine.appendSwitch('use-angle', 'gl')
+  }
 }
 
 configureRuntimePaths()
