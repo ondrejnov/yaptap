@@ -21,11 +21,18 @@ export interface AppConfig {
   shortcut: Shortcut;
   apiKey: string;
   llmUrl: string;
+  screenshotApiKey: string;
   screenshotEnabled: boolean;
   screenshotModel: string;
   fixedPrompt: string;
   customWords: string;
   llmPrompt: string;
+  postProcessEnabled: boolean;
+  postProcessUrl: string;
+  postProcessApiKey: string;
+  postProcessModel: string;
+  postProcessPrompt: string;
+  postProcessFetchUrl: string;
 }
 
 export interface ShortcutOption {
@@ -81,6 +88,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   shortcut: "Ctrl+Win",
   apiKey: "",
   llmUrl: "http://10.0.0.232:1234",
+  screenshotApiKey: "",
   screenshotEnabled: false,
   screenshotModel: "google/gemma-4-e4b",
   fixedPrompt: "",
@@ -88,4 +96,12 @@ export const DEFAULT_CONFIG: AppConfig = {
   llmPrompt:
     "Extrahuj z obrázku klíčové slova, názvy proměnných a důležité termíny. " +
     "Bude to krátký kontext pro speak-to-text model. Max 350 tokenů.",
+  postProcessEnabled: false,
+  postProcessUrl: "http://10.0.0.232:1234",
+  postProcessApiKey: "",
+  postProcessModel: "",
+  postProcessPrompt:
+    "Uprav následující přepsaný text: oprav gramatiku, interpunkci a překlepy. " +
+    "Zachovej původní význam i jazyk. Vrať pouze upravený text bez jakéhokoli komentáře.",
+  postProcessFetchUrl: "",
 };

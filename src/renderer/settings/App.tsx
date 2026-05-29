@@ -5,7 +5,12 @@ import {
   type AppConfig,
 } from "../../shared/types";
 
-type TabId = "recording" | "transcription" | "context" | "app";
+type TabId =
+  | "recording"
+  | "transcription"
+  | "context"
+  | "postprocessing"
+  | "app";
 
 interface MicDevice {
   deviceId: string;
@@ -168,6 +173,7 @@ export default function App(): JSX.Element {
     { id: "recording", label: "Nahrávání", icon: "🎙" },
     { id: "transcription", label: "Přepis", icon: "✍️" },
     { id: "context", label: "Kontext z obrazovky", icon: "🖼" },
+    { id: "postprocessing", label: "Post processing", icon: "✨" },
     { id: "app", label: "Aplikace", icon: "⚙️" },
   ];
 
@@ -360,7 +366,7 @@ export default function App(): JSX.Element {
           {tab === "context" && (
             <Section
               title="Screenshot context reader"
-              description="Lokální model čte obrazovku a doplňuje kontext pro přepis."
+              description="AI model čte obrazovku a doplňuje kontext pro přepis."
             >
               <Row>
                 <Label htmlFor="screenshot-enabled">Zapnout</Label>
@@ -373,7 +379,7 @@ export default function App(): JSX.Element {
               {config.screenshotEnabled && (
                 <>
                   <Row>
-                    <Label htmlFor="llm-url">API pro lokální model</Label>
+                    <Label htmlFor="llm-url">API endpoint</Label>
                     <input
                       id="llm-url"
                       type="text"
@@ -384,9 +390,20 @@ export default function App(): JSX.Element {
                     />
                   </Row>
                   <Row>
-                    <Label htmlFor="screenshot-model">
-                      Model pro screenshot
-                    </Label>
+                    <Label htmlFor="screenshot-api-key">API klíč</Label>
+                    <input
+                      id="screenshot-api-key"
+                      type="password"
+                      placeholder="Volitelné (sk-…)"
+                      value={config.screenshotApiKey}
+                      onChange={(e) =>
+                        update("screenshotApiKey", e.target.value)
+                      }
+                      className={inputClass}
+                    />
+                  </Row>
+                  <Row>
+                    <Label htmlFor="screenshot-model">Model</Label>
                     <input
                       id="screenshot-model"
                       type="text"
@@ -407,6 +424,97 @@ export default function App(): JSX.Element {
                       onChange={(e) => update("llmPrompt", e.target.value)}
                       className={textareaClass}
                     />
+                  </Row>
+                </>
+              )}
+            </Section>
+          )}
+
+          {tab === "postprocessing" && (
+            <Section
+              title="Post processing přepisu"
+              description="Hotový přepis se ještě pošle přes další AI model k úpravě (např. oprava gramatiky, formátování)."
+            >
+              <Row>
+                <Label htmlFor="postprocess-enabled">Zapnout</Label>
+                <Toggle
+                  checked={config.postProcessEnabled}
+                  onChange={(v) => update("postProcessEnabled", v)}
+                />
+              </Row>
+
+              {config.postProcessEnabled && (
+                <>
+                  <Row>
+                    <Label htmlFor="postprocess-url">API endpoint</Label>
+                    <input
+                      id="postprocess-url"
+                      type="text"
+                      placeholder="http://10.0.0.232:1234"
+                      value={config.postProcessUrl}
+                      onChange={(e) => update("postProcessUrl", e.target.value)}
+                      className={inputClass}
+                    />
+                  </Row>
+                  <Row>
+                    <Label htmlFor="postprocess-api-key">API klíč</Label>
+                    <input
+                      id="postprocess-api-key"
+                      type="password"
+                      placeholder="Volitelné (sk-…)"
+                      value={config.postProcessApiKey}
+                      onChange={(e) =>
+                        update("postProcessApiKey", e.target.value)
+                      }
+                      className={inputClass}
+                    />
+                  </Row>
+                  <Row>
+                    <Label htmlFor="postprocess-model">Model</Label>
+                    <input
+                      id="postprocess-model"
+                      type="text"
+                      placeholder="meta-llama/llama-3.1-8b"
+                      value={config.postProcessModel}
+                      onChange={(e) =>
+                        update("postProcessModel", e.target.value)
+                      }
+                      className={inputClass}
+                    />
+                  </Row>
+                  <Row>
+                    <Label htmlFor="postprocess-fetch-url">
+                      Externí data (URL)
+                    </Label>
+                    <input
+                      id="postprocess-fetch-url"
+                      type="text"
+                      placeholder="Volitelné – https://…"
+                      value={config.postProcessFetchUrl}
+                      onChange={(e) =>
+                        update("postProcessFetchUrl", e.target.value)
+                      }
+                      className={inputClass}
+                    />
+                  </Row>
+                  <Row column>
+                    <Label htmlFor="postprocess-prompt">Prompt</Label>
+                    <textarea
+                      id="postprocess-prompt"
+                      rows={4}
+                      value={config.postProcessPrompt}
+                      onChange={(e) =>
+                        update("postProcessPrompt", e.target.value)
+                      }
+                      className={textareaClass}
+                    />
+                    <div className="mt-1 text-[11px] text-slate-400">
+                      Zástupný znak{" "}
+                      <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-slate-600">
+                        {"{{data}}"}
+                      </code>{" "}
+                      v promptu se nahradí daty načtenými z URL výše.
+                    </div>
                   </Row>
                 </>
               )}
