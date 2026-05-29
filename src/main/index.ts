@@ -24,10 +24,11 @@ function configureRuntimePaths(): void {
   app.commandLine.appendSwitch('disable-gpu-shader-disk-cache')
   app.commandLine.appendSwitch('disable-http-cache')
 
-  // macOS: ANGLE Metal backend spamuje stderr `eglQueryDeviceAttribEXT` v dev modu.
-  // Přepnutí na GL backend ten nekonečný log zastaví bez vypnutí HW akcelerace.
-  if (process.platform === 'darwin') {
-    app.commandLine.appendSwitch('use-angle', 'gl')
+  // macOS dev: ANGLE sype do stderru nekonečně `EGL Driver message (Error)
+  // eglQueryDeviceAttribEXT`. Vypnutím HW akcelerace se ANGLE vůbec nenastartuje
+  // a spam zmizí. Jen pro dev — v zabaleném buildu necháváme akceleraci zapnutou.
+  if (process.platform === 'darwin' && !app.isPackaged) {
+    app.disableHardwareAcceleration()
   }
 }
 
