@@ -26,6 +26,11 @@
     ],
     "win": {
       "icon": "assets/icon.ico"
+    },
+    "mac": {
+      "target": [
+        "dir"
+      ]
     }
   },
   "devDependencies": {
