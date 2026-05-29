@@ -30,13 +30,29 @@ async function openMacAccessibilitySettings(): Promise<void> {
 }
 
 /**
- * Na macOS ověří oprávnění Accessibility (nutné pro globální zkratky).
+ * Na macOS ověří oprávnění Accessibility (nutné pro globální zkratky a vkládání textu).
+ *
+ * Při automatickém startu (manual=false) a chybějícím oprávnění předá systému
+ * `prompt=true`. Tím macOS yaptap automaticky přidá do seznamu
+ * Soukromí a zabezpečení → Zpřístupnění (odškrtnutý) a při prvním spuštění
+ * zobrazí svůj nativní dialog – uživatel tedy nemusí appku přidávat ručně
+ * tlačítkem „+". Při ručním ověření (manual=true) prompt nezobrazujeme, ať se
+ * neukáže duplicitně s naším vlastním dialogem.
+ *
  * Vrací true, pokud je oprávnění uděleno (a na ostatních platformách vždy).
  */
 export function checkMacAccessibility(manual = false): boolean {
   if (process.platform !== 'darwin') return true
 
-  const isTrusted = systemPreferences.isTrustedAccessibilityClient(false)
+  // Tichá kontrola bez systémového dialogu.
+  let isTrusted = systemPreferences.isTrustedAccessibilityClient(false)
+
+  // Automatický start bez oprávnění: vyžádej si ho přes systém, ať se yaptap
+  // sám zaregistruje do seznamu Zpřístupnění a macOS ukáže nativní dialog.
+  if (!isTrusted && !manual) {
+    isTrusted = systemPreferences.isTrustedAccessibilityClient(true)
+  }
+
   if (!isTrusted) {
     console.log('Vyžadováno oprávnění pro usnadnění (Accessibility).')
     void dialog
@@ -44,7 +60,8 @@ export function checkMacAccessibility(manual = false): boolean {
         type: 'warning',
         title: 'Oprávnění pro usnadnění',
         message:
-          'yaptap potřebuje oprávnění pro usnadnění (Accessibility), aby mohlo reagovat na globální klávesové zkratky.\n\n' +
+          'yaptap potřebuje oprávnění pro usnadnění (Accessibility), aby mohlo reagovat na globální klávesové zkratky a vkládat přepsaný text.\n\n' +
+          'yaptap by už měl být v seznamu Soukromí a zabezpečení → Zpřístupnění – stačí ho zaškrtnout a aplikaci restartovat.\n\n' +
           'Pokud jste oprávnění již udělili a stále to nefunguje, odeberte yaptap ze seznamu (tlačítkem mínus) a přidejte jej znovu. Poté aplikaci restartujte.',
         buttons: ['Otevřít nastavení', 'Zrušit']
       })
