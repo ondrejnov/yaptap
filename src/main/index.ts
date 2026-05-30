@@ -8,6 +8,14 @@ import { registerHotkey, clearActiveKeys } from './hotkey'
 import { checkMacAccessibility } from './accessibility'
 import { handleAudioData, handleRecordingError } from './recording'
 
+// macOS: ANGLE can spam stderr with `EGL Driver message (Error)
+// eglQueryDeviceAttribEXT`. This app does not need GPU acceleration, so disable it
+// before any Electron runtime paths/windows are touched.
+if (process.platform === 'darwin') {
+  app.disableHardwareAcceleration()
+  app.commandLine.appendSwitch('disable-gpu')
+}
+
 // ─── Runtime cache cesty ──────────────────────────────────────────────────────
 function configureRuntimePaths(): void {
   try {
@@ -24,12 +32,6 @@ function configureRuntimePaths(): void {
   app.commandLine.appendSwitch('disable-gpu-shader-disk-cache')
   app.commandLine.appendSwitch('disable-http-cache')
 
-  // macOS dev: ANGLE sype do stderru nekonečně `EGL Driver message (Error)
-  // eglQueryDeviceAttribEXT`. Vypnutím HW akcelerace se ANGLE vůbec nenastartuje
-  // a spam zmizí. Jen pro dev — v zabaleném buildu necháváme akceleraci zapnutou.
-  if (process.platform === 'darwin' && !app.isPackaged) {
-    app.disableHardwareAcceleration()
-  }
 }
 
 configureRuntimePaths()
