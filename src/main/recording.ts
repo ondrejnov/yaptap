@@ -17,6 +17,8 @@ import {
   getOverlay,
   getRecorder,
   hideOverlay,
+  isRecorderReady,
+  onRecorderReady,
   safeSend,
   showOverlay,
 } from "./windows";
@@ -25,6 +27,7 @@ import { setTrayActive, setTrayError } from "./tray";
 let isRecording = false;
 let savedVolume: number | null = null;
 let currentPromptPromise: Promise<string> | null = null;
+let startQueued = false;
 
 export function getIsRecording(): boolean {
   return isRecording;
@@ -224,6 +227,18 @@ export function startRecording(): void {
   console.log("▶ Start nahrávání");
 
   const recorder = ensureRecorder();
+  if (!isRecorderReady()) {
+    if (!startQueued) {
+      startQueued = true;
+      onRecorderReady(() => {
+        startQueued = false;
+        if (isRecording) startRecording();
+      });
+    }
+    console.warn("Recorder ještě není připravený, start nahrávání odkládám.");
+    return;
+  }
+
   if (!safeSend(recorder, "start-recording")) {
     console.error("Start nahrávání selhal: recorder window není dostupné");
     isRecording = false;

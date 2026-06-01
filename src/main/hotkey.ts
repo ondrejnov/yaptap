@@ -5,6 +5,7 @@ import { getTargetKeys, normalizeKey } from './shortcuts'
 import { getIsRecording, setIsRecording, startRecording, stopRecording } from './recording'
 
 const activeKeys = new Set<number>()
+const activeHoldInputs = new Set<'hotkey' | 'pedal'>()
 
 // Dorazil od startu aspoň jeden vstupní event? Slouží k detekci tiše selhaného tapu.
 let gotAnyInput = false
@@ -15,6 +16,35 @@ function isSettingsFocused(): boolean {
   if (!focusedWindow) return false
 
   return focusedWindow.webContents.getURL().includes('/settings/')
+}
+
+function setHoldInput(input: 'hotkey' | 'pedal', active: boolean): void {
+  const wasRecordingRequested = activeHoldInputs.size > 0
+
+  if (active) {
+    activeHoldInputs.add(input)
+  } else {
+    activeHoldInputs.delete(input)
+  }
+
+  const isRecordingRequested = activeHoldInputs.size > 0
+  if (!wasRecordingRequested && isRecordingRequested && !getIsRecording()) {
+    setIsRecording(true)
+    startRecording()
+  }
+  if (wasRecordingRequested && !isRecordingRequested && getIsRecording()) {
+    setIsRecording(false)
+    activeKeys.clear() // Reset – předchází zaseknutí po zmeškaném keyup eventu
+    stopRecording()
+  }
+}
+
+export function setPedalPressed(pressed: boolean): void {
+  if (isSettingsFocused()) {
+    setHoldInput('pedal', false)
+    return
+  }
+  setHoldInput('pedal', pressed)
 }
 
 /**
@@ -73,20 +103,13 @@ export function registerHotkey(): void {
 
       activeKeys.add(normalizeKey(e.keycode))
       const targetKeys = getTargetKeys(getConfig().shortcut)
-      if (targetKeys.every((k) => activeKeys.has(k)) && !getIsRecording()) {
-        setIsRecording(true)
-        startRecording()
-      }
+      setHoldInput('hotkey', targetKeys.every((k) => activeKeys.has(k)))
     })
 
     uIOhook.on('keyup', (e) => {
       activeKeys.delete(normalizeKey(e.keycode))
       const targetKeys = getTargetKeys(getConfig().shortcut)
-      if (!targetKeys.every((k) => activeKeys.has(k)) && getIsRecording()) {
-        setIsRecording(false)
-        activeKeys.clear() // Reset – předchází zaseknutí po zmeškaném keyup eventu
-        stopRecording()
-      }
+      setHoldInput('hotkey', targetKeys.every((k) => activeKeys.has(k)))
     })
 
     uIOhook.start()
@@ -103,4 +126,5 @@ export function registerHotkey(): void {
 
 export function clearActiveKeys(): void {
   activeKeys.clear()
+  activeHoldInputs.clear()
 }

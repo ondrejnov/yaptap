@@ -13,12 +13,17 @@ export type Shortcut =
   | "F10"
   | "F12";
 
+export type PedalInput = "auto" | `axis:${number}` | `button:${number}`;
+
 export interface AppConfig {
   deviceId: string | null;
   openAtLogin: boolean;
   duckingVolume: number;
   language: string;
   shortcut: Shortcut;
+  pedalEnabled: boolean;
+  pedalGamepadId: string | null;
+  pedalInput: PedalInput;
   apiKey: string;
   llmUrl: string;
   screenshotApiKey: string;
@@ -86,6 +91,9 @@ export const DEFAULT_CONFIG: AppConfig = {
   duckingVolume: 5,
   language: "cs",
   shortcut: "Ctrl+Win",
+  pedalEnabled: false,
+  pedalGamepadId: null,
+  pedalInput: "auto",
   apiKey: "",
   llmUrl: "http://10.0.0.232:1234",
   screenshotApiKey: "",

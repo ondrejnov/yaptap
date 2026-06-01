@@ -17,6 +17,13 @@ interface MicDevice {
   label: string;
 }
 
+interface GamepadDevice {
+  id: string;
+  index: number;
+  axes: number;
+  buttons: number;
+}
+
 // ─── Sdílené UI prvky ──────────────────────────────────────────────────────────
 function Row({
   children,
@@ -110,6 +117,7 @@ export default function App(): JSX.Element {
   const [tab, setTab] = useState<TabId>("recording");
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [devices, setDevices] = useState<MicDevice[]>([]);
+  const [gamepads, setGamepads] = useState<GamepadDevice[]>([]);
   const [status, setStatus] = useState("Čekám na přístup…");
   const [statusError, setStatusError] = useState(false);
   const [ready, setReady] = useState(false);
@@ -148,6 +156,42 @@ export default function App(): JSX.Element {
     })();
   }, []);
 
+  useEffect(() => {
+    refreshGamepads();
+    const interval = window.setInterval(refreshGamepads, 1000);
+    window.addEventListener("gamepadconnected", refreshGamepads);
+    window.addEventListener("gamepaddisconnected", refreshGamepads);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("gamepadconnected", refreshGamepads);
+      window.removeEventListener("gamepaddisconnected", refreshGamepads);
+    };
+  }, []);
+
+  function refreshGamepads(): void {
+    const connected = navigator
+      .getGamepads()
+      .filter((g): g is Gamepad => !!g)
+      .map((g) => ({
+        id: g.id,
+        index: g.index,
+        axes: g.axes.length,
+        buttons: g.buttons.length,
+      }));
+    setGamepads(connected);
+  }
+
+  function pedalInputLabel(input: string): string {
+    if (input === "button:7") return "Plyn / pravý trigger";
+    if (input === "button:6") return "Brzda / levý trigger";
+    if (input === "axis:2") return "Osa 2 (často plyn)";
+    if (input === "axis:1") return "Osa 1 (často plyn/brzda)";
+    if (input === "axis:5") return "Osa 5 (často plyn)";
+    if (input.startsWith("button:")) return `Tlačítko ${input.slice("button:".length)}`;
+    if (input.startsWith("axis:")) return `Osa ${input.slice("axis:".length)}`;
+    return input;
+  }
+
   function update<K extends keyof AppConfig>(
     key: K,
     value: AppConfig[K],
@@ -178,6 +222,16 @@ export default function App(): JSX.Element {
   ];
 
   const activeNav = nav.find((n) => n.id === tab)!;
+  const selectedGamepad =
+    gamepads.find((g) => g.id === config.pedalGamepadId) ?? gamepads[0] ?? null;
+  const pedalInputs = selectedGamepad
+    ? [
+        ...Array.from({ length: selectedGamepad.buttons }, (_v, i) => `button:${i}`),
+        ...Array.from({ length: selectedGamepad.axes }, (_v, i) => `axis:${i}`),
+      ]
+    : config.pedalInput === "auto"
+      ? []
+      : [config.pedalInput];
 
   return (
     <div className="flex h-screen bg-white text-slate-800">
@@ -273,6 +327,77 @@ export default function App(): JSX.Element {
                     ))}
                   </select>
                 </Row>
+
+                <Row>
+                  <Label htmlFor="pedal-enabled">Herní pedál</Label>
+                  <Toggle
+                    checked={config.pedalEnabled}
+                    onChange={(v) => update("pedalEnabled", v)}
+                  />
+                </Row>
+
+                {config.pedalEnabled && (
+                  <>
+                    <Row>
+                      <Label htmlFor="pedal-gamepad">Zařízení</Label>
+                      <div className="flex items-center gap-2">
+                        <select
+                          id="pedal-gamepad"
+                          value={config.pedalGamepadId ?? ""}
+                          onChange={(e) => {
+                            update("pedalGamepadId", e.target.value || null);
+                            update("pedalInput", "auto");
+                          }}
+                          className={inputClass}
+                        >
+                          <option value="">První dostupný gamepad</option>
+                          {gamepads.map((g) => (
+                            <option key={`${g.index}:${g.id}`} value={g.id}>
+                              {g.id}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={refreshGamepads}
+                          className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-[13px] text-slate-700 transition hover:bg-slate-100"
+                        >
+                          Obnovit
+                        </button>
+                      </div>
+                    </Row>
+
+                    <Row column>
+                      <div className="flex w-full items-center justify-between gap-4">
+                        <Label htmlFor="pedal-input">Pedál</Label>
+                        <select
+                          id="pedal-input"
+                          value={config.pedalInput}
+                          onChange={(e) =>
+                            update(
+                              "pedalInput",
+                              e.target.value as AppConfig["pedalInput"],
+                            )
+                          }
+                          className={inputClass}
+                        >
+                          <option value="auto">
+                            Automaticky (preferovat plyn)
+                          </option>
+                          {pedalInputs.map((input) => (
+                            <option key={input} value={input}>
+                              {pedalInputLabel(input)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="text-[11px] text-slate-400">
+                        Pokud se zařízení nezobrazuje, sešlápněte pedál nebo
+                        stiskněte tlačítko na gamepadu a dejte Obnovit.
+                      </div>
+                    </Row>
+                  </>
+                )}
 
                 <Row>
                   <Label htmlFor="ducking">Ztlumit hudbu</Label>
@@ -390,19 +515,6 @@ export default function App(): JSX.Element {
                     />
                   </Row>
                   <Row>
-                    <Label htmlFor="screenshot-api-key">API klíč</Label>
-                    <input
-                      id="screenshot-api-key"
-                      type="password"
-                      placeholder="Volitelné (sk-…)"
-                      value={config.screenshotApiKey}
-                      onChange={(e) =>
-                        update("screenshotApiKey", e.target.value)
-                      }
-                      className={inputClass}
-                    />
-                  </Row>
-                  <Row>
                     <Label htmlFor="screenshot-model">Model</Label>
                     <input
                       id="screenshot-model"
@@ -415,11 +527,24 @@ export default function App(): JSX.Element {
                       className={inputClass}
                     />
                   </Row>
+                  <Row>
+                    <Label htmlFor="screenshot-api-key">API klíč</Label>
+                    <input
+                      id="screenshot-api-key"
+                      type="password"
+                      placeholder="Volitelné (sk-…)"
+                      value={config.screenshotApiKey}
+                      onChange={(e) =>
+                        update("screenshotApiKey", e.target.value)
+                      }
+                      className={inputClass}
+                    />
+                  </Row>
                   <Row column>
                     <Label htmlFor="llm-prompt">Prompt pro screen reader</Label>
                     <textarea
                       id="llm-prompt"
-                      rows={3}
+                      rows={6}
                       value={config.llmPrompt}
                       onChange={(e) => update("llmPrompt", e.target.value)}
                       className={textareaClass}
@@ -457,6 +582,19 @@ export default function App(): JSX.Element {
                     />
                   </Row>
                   <Row>
+                    <Label htmlFor="postprocess-model">Model</Label>
+                    <input
+                      id="postprocess-model"
+                      type="text"
+                      placeholder="google/gemma-4-e4b"
+                      value={config.postProcessModel}
+                      onChange={(e) =>
+                        update("postProcessModel", e.target.value)
+                      }
+                      className={inputClass}
+                    />
+                  </Row>
+                  <Row>
                     <Label htmlFor="postprocess-api-key">API klíč</Label>
                     <input
                       id="postprocess-api-key"
@@ -465,19 +603,6 @@ export default function App(): JSX.Element {
                       value={config.postProcessApiKey}
                       onChange={(e) =>
                         update("postProcessApiKey", e.target.value)
-                      }
-                      className={inputClass}
-                    />
-                  </Row>
-                  <Row>
-                    <Label htmlFor="postprocess-model">Model</Label>
-                    <input
-                      id="postprocess-model"
-                      type="text"
-                      placeholder="meta-llama/llama-3.1-8b"
-                      value={config.postProcessModel}
-                      onChange={(e) =>
-                        update("postProcessModel", e.target.value)
                       }
                       className={inputClass}
                     />
@@ -527,7 +652,9 @@ export default function App(): JSX.Element {
               description="Chování aplikace v operačním systému."
             >
               <Row>
-                <Label htmlFor="open-at-login">Spustit při startu systému</Label>
+                <Label htmlFor="open-at-login">
+                  Spustit při startu systému
+                </Label>
                 <Toggle
                   checked={config.openAtLogin}
                   onChange={(v) => update("openAtLogin", v)}

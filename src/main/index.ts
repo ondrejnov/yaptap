@@ -3,10 +3,12 @@ import { join } from 'path'
 import { mkdirSync } from 'fs'
 import { getConfig, loadConfig, updateConfig, type AppConfig } from './config'
 import { createTray, updateTrayMenu } from './tray'
-import { createOverlay, createRecorderWindow, safeSend, getRecorder, setShuttingDown } from './windows'
-import { registerHotkey, clearActiveKeys } from './hotkey'
+import { createOverlay, createRecorderWindow, markRecorderReady, sendRecorderConfig, setShuttingDown } from './windows'
+import { registerHotkey, clearActiveKeys, setPedalPressed } from './hotkey'
 import { checkMacAccessibility } from './accessibility'
 import { handleAudioData, handleRecordingError } from './recording'
+
+const APP_USER_MODEL_ID = 'com.yaptap.app'
 
 // macOS: ANGLE can spam stderr with `EGL Driver message (Error)
 // eglQueryDeviceAttribEXT`. This app does not need GPU acceleration, so disable it
@@ -35,6 +37,10 @@ function configureRuntimePaths(): void {
 }
 
 configureRuntimePaths()
+
+if (process.platform === 'win32') {
+  app.setAppUserModelId(APP_USER_MODEL_ID)
+}
 
 // ─── App ready ─────────────────────────────────────────────────────────────────
 app.whenReady().then(() => {
@@ -80,7 +86,7 @@ ipcMain.handle('get-config', () => getConfig())
 ipcMain.handle('save-settings', (_event, newConfig: Partial<AppConfig>) => {
   updateConfig(newConfig)
   updateTrayMenu()
-  safeSend(getRecorder(), 'set-device', getConfig().deviceId)
+  sendRecorderConfig()
 })
 
 ipcMain.on('audio-data', (_event, arrayBuffer: ArrayBuffer) => {
@@ -94,4 +100,13 @@ ipcMain.on('recording-error', (_event, err: { code?: string; message?: string })
 
 ipcMain.on('recording-started', () => {
   /* recorder potvrdil start – zatím bez akce */
+})
+
+ipcMain.on('recorder-ready', () => {
+  markRecorderReady()
+})
+
+ipcMain.on('pedal-state', (_event, pressed: boolean) => {
+  if (!getConfig().pedalEnabled && pressed) return
+  setPedalPressed(pressed)
 })

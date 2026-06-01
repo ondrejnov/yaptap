@@ -16,10 +16,13 @@ declare global {
     }
     recorderApi: {
       onSetDevice: (cb: (deviceId: string | null) => void) => void
+      onSetPedalConfig: (cb: (config: { enabled: boolean; gamepadId: string | null; input: string }) => void) => void
       onStartRecording: (cb: () => void) => void
       onStopRecording: (cb: () => void) => void
+      sendRecorderReady: () => void
       sendAudioData: (buffer: ArrayBuffer) => void
       sendRecordingStarted: () => void
+      sendPedalState: (pressed: boolean) => void
       sendRecordingError: (err: { code: string; message: string }) => void
     }
   }

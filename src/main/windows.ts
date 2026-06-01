@@ -1,6 +1,7 @@
-import { BrowserWindow, screen } from 'electron'
+import { app, BrowserWindow, screen } from 'electron'
 import { join } from 'path'
 import { getConfig } from './config'
+import type { PedalInput } from '../shared/types'
 
 type RendererName = 'settings' | 'overlay' | 'recorder'
 
@@ -8,6 +9,8 @@ let overlayWindow: BrowserWindow | null = null
 let recorderWindow: BrowserWindow | null = null
 let settingsWindow: BrowserWindow | null = null
 let shuttingDown = false
+let recorderReady = false
+const recorderReadyCallbacks: Array<() => void> = []
 
 export function setShuttingDown(value: boolean): void {
   shuttingDown = value
@@ -28,6 +31,10 @@ function preloadPath(name: RendererName): string {
   return join(__dirname, `../preload/${name}.mjs`)
 }
 
+function windowIconPath(): string {
+  return app.isPackaged ? join(process.resourcesPath, 'icon.ico') : join(__dirname, '../../assets/icon.ico')
+}
+
 // ─── Pomocné funkce ──────────────────────────────────────────────────────────
 export function isWindowUsable(win: BrowserWindow | null): win is BrowserWindow {
   return !!(win && !win.isDestroyed() && win.webContents && !win.webContents.isDestroyed())
@@ -44,6 +51,36 @@ export function safeSend(win: BrowserWindow | null, channel: string, ...args: un
   }
 }
 
+export function sendRecorderConfig(): void {
+  if (!recorderReady) return
+  const config = getConfig()
+  safeSend(recorderWindow, 'set-device', config.deviceId)
+  safeSend(recorderWindow, 'set-pedal-config', {
+    enabled: config.pedalEnabled,
+    gamepadId: config.pedalGamepadId,
+    input: config.pedalInput as PedalInput
+  })
+}
+
+export function isRecorderReady(): boolean {
+  return recorderReady && isWindowUsable(recorderWindow)
+}
+
+export function onRecorderReady(cb: () => void): void {
+  if (isRecorderReady()) {
+    cb()
+    return
+  }
+  recorderReadyCallbacks.push(cb)
+}
+
+export function markRecorderReady(): void {
+  recorderReady = true
+  sendRecorderConfig()
+  const callbacks = recorderReadyCallbacks.splice(0)
+  callbacks.forEach((cb) => cb())
+}
+
 // ─── Overlay okno (indikátor nahrávání) ──────────────────────────────────────
 export function createOverlay(): void {
   if (isWindowUsable(overlayWindow)) return
@@ -51,6 +88,7 @@ export function createOverlay(): void {
   overlayWindow = new BrowserWindow({
     width: 70,
     height: 70,
+    icon: windowIconPath(),
     frame: false,
     transparent: true,
     backgroundColor: '#00000000',
@@ -110,28 +148,30 @@ export function hideOverlay(): void {
 // ─── Recorder okno (skrytý renderer pro Web Audio API) ───────────────────────
 export function createRecorderWindow(): void {
   if (isWindowUsable(recorderWindow)) return
+  recorderReady = false
 
   recorderWindow = new BrowserWindow({
     show: false,
+    icon: windowIconPath(),
     webPreferences: {
       preload: preloadPath('recorder'),
-      sandbox: false // nutné pro ESM preload
+      sandbox: false, // nutné pro ESM preload
+      backgroundThrottling: false
     }
   })
 
   loadRenderer(recorderWindow, 'recorder')
-  recorderWindow.webContents.once('did-finish-load', () => {
-    safeSend(recorderWindow, 'set-device', getConfig().deviceId)
-  })
 
   recorderWindow.on('closed', () => {
     console.warn('Recorder window zavřeno, obnovuji…')
     recorderWindow = null
+    recorderReady = false
     if (!shuttingDown) setTimeout(() => createRecorderWindow(), 300)
   })
   recorderWindow.webContents.on('render-process-gone', (_e, details) => {
     console.error('Recorder renderer zhasnul:', details.reason)
     recorderWindow = null
+    recorderReady = false
     if (!shuttingDown) setTimeout(() => createRecorderWindow(), 300)
   })
 }
@@ -154,6 +194,7 @@ export function openSettings(): void {
   settingsWindow = new BrowserWindow({
     width: 820,
     height: 620,
+    icon: windowIconPath(),
     minWidth: 720,
     minHeight: 520,
     title: 'Nastavení – yaptap',
