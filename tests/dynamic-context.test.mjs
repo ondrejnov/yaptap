@@ -23,7 +23,7 @@ const { outputFiles } = buildSync({
   format: "esm",
   write: false,
 });
-const { loadDynamicContext, buildTranscriptionPrompt, DEFAULT_CONFIG } =
+const { loadDynamicContext, buildTranscriptionContext, DEFAULT_CONFIG } =
   await import(`data:text/javascript;base64,${Buffer.from(outputFiles[0].text).toString("base64")}`);
 
 const scriptDirectory = mkdtempSync(join(tmpdir(), "yaptap context test-"));
@@ -82,26 +82,42 @@ test("fetches fresh UTF-8 context on every recording and preserves static vocabu
     config.fixedPrompt = "Projekt YapTap";
     config.customWords = "TypeScript";
     const noScreen = async () => { throw new Error("disabled screenshot must not run"); };
-    const first = await buildTranscriptionPrompt(config, noScreen);
-    const second = await buildTranscriptionPrompt(config, noScreen);
-    assert.match(first, /Projekt YapTap/);
-    assert.match(first, /Specifická slova: TypeScript/);
-    assert.match(first, /objednávka_1, žluťoučký/);
-    assert.match(second, /objednávka_2, žluťoučký/);
-    assert.doesNotMatch(second, /objednávka_1/);
+    const first = await buildTranscriptionContext(config, noScreen);
+    const second = await buildTranscriptionContext(config, noScreen);
+    assert.match(first.prompt, /Projekt YapTap/);
+    assert.match(first.prompt, /Specifická slova: TypeScript/);
+    assert.match(first.prompt, /objednávka_1, žluťoučký/);
+    assert.match(second.prompt, /objednávka_2, žluťoučký/);
+    assert.doesNotMatch(second.prompt, /objednávka_1/);
+    assert.deepEqual(first.keywords, ["TypeScript", "objednávka_1", "žluťoučký"]);
+    assert.deepEqual(second.keywords, ["TypeScript", "objednávka_2", "žluťoučký"]);
+    assert.equal(requests, 2);
   });
+});
+
+test("combines vocabulary with script context, preserving phrases and removing empty entries and duplicates", async () => {
+  const config = scriptConfig("console.log('TypeScript, příliš žluťoučký; customer_id\\nAPI');");
+  config.customWords = " API, TypeScript\r\nNové Město; , API ";
+  const { keywords } = await buildTranscriptionContext(config, async () => "");
+  assert.deepEqual(keywords, ["API", "TypeScript", "Nové Město", "příliš žluťoučký", "customer_id"]);
+
+  const disabled = await buildTranscriptionContext({ ...config, dynamicContextEnabled: false }, async () => "");
+  assert.deepEqual(disabled.keywords, ["API", "TypeScript", "Nové Město"]);
+  const empty = await buildTranscriptionContext({ ...DEFAULT_CONFIG, customWords: " , ;\r\n " }, async () => "");
+  assert.deepEqual(empty.keywords, []);
 });
 
 test("loads URL and screenshot context concurrently and includes both", { timeout: 3000 }, async () => {
   let notifyRequest;
   const requestReceived = new Promise((resolve) => { notifyRequest = resolve; });
   await withServer((_req, res) => { notifyRequest(); res.end("customer_id"); }, async (config) => {
-    const prompt = await buildTranscriptionPrompt({ ...config, screenshotEnabled: true }, async () => {
+    const { prompt, keywords } = await buildTranscriptionContext({ ...config, screenshotEnabled: true }, async () => {
       await requestReceived;
       return "Na screenshotu je vidět: IDE";
     });
     assert.match(prompt, /Na screenshotu je vidět: IDE/);
     assert.match(prompt, /customer_id/);
+    assert.deepEqual(keywords, ["customer_id"]);
   });
 });
 
@@ -148,10 +164,11 @@ test("HTTP errors, empty output, and nonzero script exits return no context", as
     const result = await loadDynamicContext(config);
     assert.equal(result.text, "");
     assert.match(result.error, /HTTP 503/);
-    const prompt = await buildTranscriptionPrompt({ ...config, fixedPrompt: "YapTap", customWords: "API" }, async () => "");
+    const { prompt, keywords } = await buildTranscriptionContext({ ...config, fixedPrompt: "YapTap", customWords: "API" }, async () => "");
     assert.match(prompt, /YapTap/);
     assert.match(prompt, /Specifická slova: API/);
     assert.doesNotMatch(prompt, /Doplňující kontext/);
+    assert.deepEqual(keywords, ["API"]);
   });
   const empty = await loadDynamicContext(scriptConfig("console.log('  ');"));
   assert.equal(empty.text, "");

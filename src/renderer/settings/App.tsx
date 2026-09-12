@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import DynamicContextSettings from "./DynamicContextSettings";
 import {
   LANGUAGES,
+  POST_PROCESS_EFFORTS,
   SHORTCUT_OPTIONS,
   type AppConfig,
 } from "../../shared/types";
@@ -611,6 +612,26 @@ export default function App(): JSX.Element {
                       }
                       className={inputClass}
                     />
+                  </Row>
+                  <Row>
+                    <Label htmlFor="postprocess-effort">Reasoning effort</Label>
+                    <select
+                      id="postprocess-effort"
+                      value={config.postProcessEffort}
+                      onChange={(e) =>
+                        update(
+                          "postProcessEffort",
+                          e.target.value as AppConfig["postProcessEffort"],
+                        )
+                      }
+                      className={inputClass}
+                    >
+                      {POST_PROCESS_EFFORTS.map((effort) => (
+                        <option key={effort} value={effort}>
+                          {effort}
+                        </option>
+                      ))}
+                    </select>
                   </Row>
                   <Row>
                     <Label htmlFor="postprocess-api-key">API klíč</Label>

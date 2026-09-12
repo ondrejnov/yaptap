@@ -57,7 +57,7 @@
     "@fontsource-variable/inter": "^5.2.8",
     "@jitsi/robotjs": "^0.6.21",
     "loudness": "^0.4.2",
-    "openai": "^6.22.0",
+    "openai": "^7.15.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "screenshot-desktop": "^1.15.3",

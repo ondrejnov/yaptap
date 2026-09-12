@@ -11,7 +11,11 @@ import loudness from "loudness";
 import screenshot from "screenshot-desktop";
 import { OpenAI } from "openai";
 import { getConfig, type AppConfig } from "./config";
-import { buildTranscriptionPrompt } from "./transcription-prompt";
+import {
+  buildTranscriptionContext,
+  buildTranscriptionKeywords,
+  type TranscriptionContext,
+} from "./transcription-prompt";
 import {
   ensureOverlay,
   ensureRecorder,
@@ -28,7 +32,7 @@ import { setLastTranscript } from "./transcripts";
 
 let isRecording = false;
 let savedVolume: number | null = null;
-let currentPromptPromise: Promise<string> | null = null;
+let currentContextPromise: Promise<TranscriptionContext> | null = null;
 let startQueued = false;
 
 export function getIsRecording(): boolean {
@@ -187,6 +191,7 @@ async function postProcessText(text: string): Promise<string> {
         headers: chatHeaders(config.postProcessApiKey),
         body: JSON.stringify({
           model: config.postProcessModel || undefined,
+          reasoning_effort: config.postProcessEffort,
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: text },
@@ -246,7 +251,10 @@ export function startRecording(): void {
   // Malé zpoždění – throttlovaný renderer se musí probrat
   setTimeout(() => safeSend(getOverlay(), "recording-start"), 50);
 
-  currentPromptPromise = buildTranscriptionPrompt(getConfig(), readScreenContext);
+  currentContextPromise = buildTranscriptionContext(
+    getConfig(),
+    readScreenContext,
+  );
 }
 
 export function stopRecording(): void {
@@ -265,17 +273,18 @@ export async function handleAudioData(arrayBuffer: ArrayBuffer): Promise<void> {
   const tempPath = join(app.getPath("temp"), `yaptap_audio_${Date.now()}.webm`);
   writeFileSync(tempPath, Buffer.from(arrayBuffer));
 
-  const promptPromise = currentPromptPromise;
-  currentPromptPromise = null;
-  let resolvedPrompt: string;
+  const contextPromise = currentContextPromise;
+  currentContextPromise = null;
+  let context: TranscriptionContext;
   try {
-    resolvedPrompt = await (promptPromise ?? buildTranscriptionPrompt(config, readScreenContext));
+    context = await (contextPromise ??
+      buildTranscriptionContext(config, readScreenContext));
   } catch (e) {
     console.error("Chyba při získávání promptu:", e);
-    resolvedPrompt = [
-      config.fixedPrompt,
-      config.customWords ? `Specifická slova: ${config.customWords}` : "",
-    ].filter(Boolean).join("\n\n");
+    context = {
+      prompt: [config.fixedPrompt].filter(Boolean).join("\n\n"),
+      keywords: buildTranscriptionKeywords(config.customWords),
+    };
   }
 
   const apiKey = process.env.OPENAI_API_KEY || config.apiKey;
@@ -285,13 +294,16 @@ export async function handleAudioData(arrayBuffer: ArrayBuffer): Promise<void> {
         "Není nastaven OpenAI API klíč. Nastavte OPENAI_API_KEY v .env nebo v nastavení aplikace.",
       );
     }
+
     const openai = new OpenAI({ apiKey: apiKey.trim() });
 
     const transcription = await openai.audio.transcriptions.create({
-      model: "gpt-4o-transcribe",
+      model: "gpt-transcribe",
       file: createReadStream(tempPath),
-      language: config.language === "auto" ? undefined : config.language,
-      prompt: resolvedPrompt || undefined,
+      languages:
+        config.language === "auto" ? undefined : [config.language, "en"],
+      keywords: context.keywords,
+      prompt: context.prompt || undefined,
     });
 
     let finalText = transcription.text.trim();

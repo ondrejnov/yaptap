@@ -15,6 +15,18 @@ export type Shortcut =
 
 export type PedalInput = "auto" | `axis:${number}` | `button:${number}`;
 
+export const POST_PROCESS_EFFORTS = [
+  "none",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+] as const;
+
+export type PostProcessEffort = (typeof POST_PROCESS_EFFORTS)[number];
+
 export interface DynamicContextConfig {
   dynamicContextEnabled: boolean;
   dynamicContextSource: "url" | "script";
@@ -51,6 +63,7 @@ export interface AppConfig extends DynamicContextConfig {
   postProcessUrl: string;
   postProcessApiKey: string;
   postProcessModel: string;
+  postProcessEffort: PostProcessEffort;
   postProcessPrompt: string;
   postProcessFetchUrl: string;
 }
@@ -129,6 +142,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   postProcessUrl: "http://10.0.0.232:1234",
   postProcessApiKey: "",
   postProcessModel: "",
+  postProcessEffort: "low",
   postProcessPrompt:
     "Uprav následující přepsaný text: oprav gramatiku, interpunkci a překlepy. " +
     "Zachovej původní význam i jazyk. Vrať pouze upravený text bez jakéhokoli komentáře.",
