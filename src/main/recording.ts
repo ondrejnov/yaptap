@@ -86,7 +86,7 @@ async function readScreenContext(config: AppConfig): Promise<string> {
 
     let res: Response;
     try {
-      res = await fetch(`${config.llmUrl}/v1/chat/completions`, {
+      res = await fetch(buildChatEndpoint(config.llmUrl), {
         method: "POST",
         signal: abort.signal,
         headers: chatHeaders(config.screenshotApiKey),
@@ -290,6 +290,7 @@ export async function handleAudioData(arrayBuffer: ArrayBuffer): Promise<void> {
     const transcription = await openai.audio.transcriptions.create({
       model: "gpt-4o-transcribe",
       file: createReadStream(tempPath),
+      language: config.language === "auto" ? undefined : config.language,
       prompt: resolvedPrompt || undefined,
     });
 
