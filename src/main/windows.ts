@@ -3,11 +3,12 @@ import { join } from 'path'
 import { getConfig } from './config'
 import type { PedalInput } from '../shared/types'
 
-type RendererName = 'settings' | 'overlay' | 'recorder'
+type RendererName = 'settings' | 'overlay' | 'recorder' | 'transcript'
 
 let overlayWindow: BrowserWindow | null = null
 let recorderWindow: BrowserWindow | null = null
 let settingsWindow: BrowserWindow | null = null
+let transcriptWindow: BrowserWindow | null = null
 let shuttingDown = false
 let recorderReady = false
 const recorderReadyCallbacks: Array<() => void> = []
@@ -186,6 +187,10 @@ export function getRecorder(): BrowserWindow | null {
 }
 
 // ─── Settings okno ───────────────────────────────────────────────────────────
+export function isSettingsWindow(webContentsId: number): boolean {
+  return isWindowUsable(settingsWindow) && settingsWindow.webContents.id === webContentsId
+}
+
 export function openSettings(): void {
   if (isWindowUsable(settingsWindow)) {
     settingsWindow.focus()
@@ -211,5 +216,36 @@ export function openSettings(): void {
   loadRenderer(settingsWindow, 'settings')
   settingsWindow.on('closed', () => {
     settingsWindow = null
+  })
+}
+
+// ─── Okno posledního transkriptu ──────────────────────────────────────────────
+export function openLastTranscriptWindow(): void {
+  if (isWindowUsable(transcriptWindow)) {
+    transcriptWindow.reload()
+    transcriptWindow.focus()
+    return
+  }
+
+  transcriptWindow = new BrowserWindow({
+    width: 560,
+    height: 360,
+    icon: windowIconPath(),
+    minWidth: 420,
+    minHeight: 260,
+    title: 'Poslední transkript – yaptap',
+    resizable: true,
+    minimizable: false,
+    maximizable: false,
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: preloadPath('transcript'),
+      sandbox: false
+    }
+  })
+  transcriptWindow.setMenu(null)
+  loadRenderer(transcriptWindow, 'transcript')
+  transcriptWindow.on('closed', () => {
+    transcriptWindow = null
   })
 }

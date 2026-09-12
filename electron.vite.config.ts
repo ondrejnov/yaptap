@@ -19,7 +19,8 @@ export default defineConfig({
         input: {
           settings: resolve(__dirname, 'src/preload/settings.ts'),
           overlay: resolve(__dirname, 'src/preload/overlay.ts'),
-          recorder: resolve(__dirname, 'src/preload/recorder.ts')
+          recorder: resolve(__dirname, 'src/preload/recorder.ts'),
+          transcript: resolve(__dirname, 'src/preload/transcript.ts')
         }
       }
     }
@@ -31,7 +32,8 @@ export default defineConfig({
         input: {
           settings: resolve(__dirname, 'src/renderer/settings/index.html'),
           overlay: resolve(__dirname, 'src/renderer/overlay/index.html'),
-          recorder: resolve(__dirname, 'src/renderer/recorder/index.html')
+          recorder: resolve(__dirname, 'src/renderer/recorder/index.html'),
+          transcript: resolve(__dirname, 'src/renderer/transcript/index.html')
         }
       }
     },

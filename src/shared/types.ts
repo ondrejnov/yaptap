@@ -15,7 +15,22 @@ export type Shortcut =
 
 export type PedalInput = "auto" | `axis:${number}` | `button:${number}`;
 
-export interface AppConfig {
+export interface DynamicContextConfig {
+  dynamicContextEnabled: boolean;
+  dynamicContextSource: "url" | "script";
+  dynamicContextUrl: string;
+  dynamicContextExecutable: string;
+  dynamicContextScriptPath: string;
+  dynamicContextScriptArgs: string;
+}
+
+export interface DynamicContextResult {
+  text: string;
+  error?: string;
+  truncated?: boolean;
+}
+
+export interface AppConfig extends DynamicContextConfig {
   deviceId: string | null;
   openAtLogin: boolean;
   duckingVolume: number;
@@ -101,6 +116,12 @@ export const DEFAULT_CONFIG: AppConfig = {
   screenshotModel: "google/gemma-4-e4b",
   fixedPrompt: "",
   customWords: "",
+  dynamicContextEnabled: false,
+  dynamicContextSource: "url",
+  dynamicContextUrl: "",
+  dynamicContextExecutable: "python",
+  dynamicContextScriptPath: "",
+  dynamicContextScriptArgs: "",
   llmPrompt:
     "Extrahuj z obrázku klíčové slova, názvy proměnných a důležité termíny. " +
     "Bude to krátký kontext pro speak-to-text model. Max 350 tokenů.",

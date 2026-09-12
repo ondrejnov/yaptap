@@ -2,7 +2,7 @@ import { app, Tray, Menu, nativeImage } from 'electron'
 import { join } from 'path'
 import { getConfig } from './config'
 import { getShortcutLabel } from './shortcuts'
-import { openSettings } from './windows'
+import { openLastTranscriptWindow, openSettings } from './windows'
 import { checkMacAccessibility } from './accessibility'
 
 let tray: Tray | null = null
@@ -35,6 +35,8 @@ export function updateTrayMenu(): void {
     { label: 'yaptap', enabled: false },
     { type: 'separator' },
     { label: `Hotkey: ${shortcut} (držet)`, enabled: false },
+    { type: 'separator' },
+    { label: 'Poslední transkript…', click: (): void => openLastTranscriptWindow() },
     { type: 'separator' },
     ...(process.platform === 'darwin'
       ? [{ label: 'Opravit oprávnění kláves (Mac)', click: (): void => void checkMacAccessibility(true) }]

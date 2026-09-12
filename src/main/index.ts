@@ -1,12 +1,15 @@
-import { app, globalShortcut, ipcMain, nativeImage } from 'electron'
+import { app, clipboard, globalShortcut, ipcMain, nativeImage } from 'electron'
 import { join } from 'path'
 import { mkdirSync } from 'fs'
 import { getConfig, loadConfig, updateConfig, type AppConfig } from './config'
 import { createTray, updateTrayMenu } from './tray'
-import { createOverlay, createRecorderWindow, markRecorderReady, sendRecorderConfig, setShuttingDown } from './windows'
+import { createOverlay, createRecorderWindow, isSettingsWindow, markRecorderReady, sendRecorderConfig, setShuttingDown } from './windows'
 import { registerHotkey, clearActiveKeys, setPedalPressed } from './hotkey'
 import { checkMacAccessibility } from './accessibility'
 import { handleAudioData, handleRecordingError } from './recording'
+import { getLastTranscript } from './transcripts'
+import { loadDynamicContext } from './dynamic-context'
+import type { DynamicContextConfig } from '../shared/types'
 
 const APP_USER_MODEL_ID = 'com.yaptap.app'
 
@@ -83,10 +86,26 @@ process.on('unhandledRejection', (reason) => console.error('Neodchycený promise
 // ─── IPC ─────────────────────────────────────────────────────────────────────
 ipcMain.handle('get-config', () => getConfig())
 
+ipcMain.handle('test-dynamic-context', (event, config: DynamicContextConfig) => {
+  if (!isSettingsWindow(event.sender.id) || event.senderFrame !== event.sender.mainFrame) {
+    throw new Error('Kontext lze vyzkoušet pouze z okna nastavení.')
+  }
+  return loadDynamicContext(config)
+})
+
 ipcMain.handle('save-settings', (_event, newConfig: Partial<AppConfig>) => {
   updateConfig(newConfig)
   updateTrayMenu()
   sendRecorderConfig()
+})
+
+ipcMain.handle('get-last-transcript', () => getLastTranscript())
+
+ipcMain.handle('copy-last-transcript', () => {
+  const transcript = getLastTranscript()
+  if (!transcript) return false
+  clipboard.writeText(transcript.text)
+  return true
 })
 
 ipcMain.on('audio-data', (_event, arrayBuffer: ArrayBuffer) => {

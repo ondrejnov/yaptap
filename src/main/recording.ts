@@ -10,7 +10,8 @@ import {
 import loudness from "loudness";
 import screenshot from "screenshot-desktop";
 import { OpenAI } from "openai";
-import { getConfig } from "./config";
+import { getConfig, type AppConfig } from "./config";
+import { buildTranscriptionPrompt } from "./transcription-prompt";
 import {
   ensureOverlay,
   ensureRecorder,
@@ -23,6 +24,7 @@ import {
   showOverlay,
 } from "./windows";
 import { setTrayActive, setTrayError } from "./tray";
+import { setLastTranscript } from "./transcripts";
 
 let isRecording = false;
 let savedVolume: number | null = null;
@@ -71,20 +73,12 @@ function chatHeaders(apiKey?: string): Record<string, string> {
   return headers;
 }
 
-// ─── Sestavení promptu (fixní + kontext ze screenshotu) ──────────────────────
-async function buildPrompt(): Promise<string> {
-  const config = getConfig();
-  const basePrompt = config.fixedPrompt || "";
-
-  if (config.screenshotEnabled === false) {
-    console.log("Screenshot vypnut, používám fixní prompt.");
-    return basePrompt;
-  }
-
+// ─── Volitelný kontext ze screenshotu ──────────────────────────────────────
+async function readScreenContext(config: AppConfig): Promise<string> {
   try {
     const screenshotPath = join(app.getPath("temp"), "yaptap-screenshot.png");
     await screenshot({ filename: screenshotPath });
-    if (!existsSync(screenshotPath)) return basePrompt;
+    if (!existsSync(screenshotPath)) return "";
 
     const base64Image = readFileSync(screenshotPath).toString("base64");
     const abort = new AbortController();
@@ -118,22 +112,19 @@ async function buildPrompt(): Promise<string> {
 
     if (!res.ok) {
       console.error("Chyba z LLM:", await res.text());
-      return basePrompt;
+      return "";
     }
 
     const data = (await res.json()) as {
       choices?: { message: { content: string } }[];
     };
     const content = data.choices?.[0]?.message?.content;
-    if (!content) return basePrompt;
+    if (!content) return "";
 
-    const screenshotContext = `Na screenshotu je vidět: ${content}`;
-    return basePrompt
-      ? `${basePrompt}\n\n${screenshotContext}`
-      : screenshotContext;
+    return `Na screenshotu je vidět: ${content}`;
   } catch (err) {
     console.error("Chyba při pořizování/zpracování screenshotu:", err);
-    return basePrompt;
+    return "";
   }
 }
 
@@ -255,7 +246,7 @@ export function startRecording(): void {
   // Malé zpoždění – throttlovaný renderer se musí probrat
   setTimeout(() => safeSend(getOverlay(), "recording-start"), 50);
 
-  currentPromptPromise = buildPrompt();
+  currentPromptPromise = buildTranscriptionPrompt(getConfig(), readScreenContext);
 }
 
 export function stopRecording(): void {
@@ -274,14 +265,17 @@ export async function handleAudioData(arrayBuffer: ArrayBuffer): Promise<void> {
   const tempPath = join(app.getPath("temp"), `yaptap_audio_${Date.now()}.webm`);
   writeFileSync(tempPath, Buffer.from(arrayBuffer));
 
-  let resolvedPrompt = "";
-  if (currentPromptPromise) {
-    try {
-      resolvedPrompt = await currentPromptPromise;
-    } catch (e) {
-      console.error("Chyba při získávání promptu:", e);
-      resolvedPrompt = config.fixedPrompt || "";
-    }
+  const promptPromise = currentPromptPromise;
+  currentPromptPromise = null;
+  let resolvedPrompt: string;
+  try {
+    resolvedPrompt = await (promptPromise ?? buildTranscriptionPrompt(config, readScreenContext));
+  } catch (e) {
+    console.error("Chyba při získávání promptu:", e);
+    resolvedPrompt = [
+      config.fixedPrompt,
+      config.customWords ? `Specifická slova: ${config.customWords}` : "",
+    ].filter(Boolean).join("\n\n");
   }
 
   const apiKey = process.env.OPENAI_API_KEY || config.apiKey;
@@ -293,15 +287,10 @@ export async function handleAudioData(arrayBuffer: ArrayBuffer): Promise<void> {
     }
     const openai = new OpenAI({ apiKey: apiKey.trim() });
 
-    const finalPrompt = (
-      resolvedPrompt +
-      (config.customWords ? "\nspecifické slova: " + config.customWords : "")
-    ).trim();
-
     const transcription = await openai.audio.transcriptions.create({
       model: "gpt-4o-transcribe",
       file: createReadStream(tempPath),
-      prompt: finalPrompt || undefined,
+      prompt: resolvedPrompt || undefined,
     });
 
     let finalText = transcription.text.trim();
@@ -313,6 +302,7 @@ export async function handleAudioData(arrayBuffer: ArrayBuffer): Promise<void> {
     }
 
     if (finalText) {
+      setLastTranscript(finalText);
       pasteText(finalText);
     } else {
       hideOverlay();

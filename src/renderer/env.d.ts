@@ -1,18 +1,23 @@
 /// <reference types="vite/client" />
 
-import type { AppConfig } from '../shared/types'
+import type { AppConfig, DynamicContextConfig, DynamicContextResult } from '../shared/types'
 
 declare global {
   interface Window {
     settingsApi: {
       platform: NodeJS.Platform
       getConfig: () => Promise<AppConfig>
+      testDynamicContext: (config: DynamicContextConfig) => Promise<DynamicContextResult>
       saveSettings: (config: Partial<AppConfig>) => Promise<void>
     }
     overlayApi: {
       onRecordingStart: (cb: () => void) => void
       onRecordingStop: (cb: () => void) => void
       onTranscribing: (cb: () => void) => void
+    }
+    transcriptApi: {
+      getLastTranscript: () => Promise<{ text: string; createdAt: string } | null>
+      copyLastTranscript: () => Promise<boolean>
     }
     recorderApi: {
       onSetDevice: (cb: (deviceId: string | null) => void) => void

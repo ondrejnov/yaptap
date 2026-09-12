@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import DynamicContextSettings from "./DynamicContextSettings";
 import {
   LANGUAGES,
   SHORTCUT_OPTIONS,
@@ -86,14 +87,17 @@ const textareaClass =
   "w-full resize-y rounded-md border border-slate-300 px-2.5 py-1.5 text-[13px] text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20";
 
 function Toggle({
+  id,
   checked,
   onChange,
 }: {
+  id?: string;
   checked: boolean;
   onChange: (v: boolean) => void;
 }): JSX.Element {
   return (
     <button
+      id={id}
       type="button"
       role="switch"
       aria-checked={checked}
@@ -265,7 +269,7 @@ export default function App(): JSX.Element {
       </aside>
 
       {/* ─── Obsah ─── */}
-      <div className="flex flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center border-b border-slate-200 px-7 py-4">
           <h1 className="flex items-center gap-2 text-[16px] font-semibold text-slate-800">
             <span>{activeNav.icon}</span>
@@ -484,6 +488,20 @@ export default function App(): JSX.Element {
                     className={textareaClass}
                   />
                 </Row>
+                <Row>
+                  <Label htmlFor="dynamic-context-enabled">Dynamický kontext</Label>
+                  <Toggle
+                    id="dynamic-context-enabled"
+                    checked={config.dynamicContextEnabled}
+                    onChange={(v) => update("dynamicContextEnabled", v)}
+                  />
+                </Row>
+                {config.dynamicContextEnabled && (
+                  <DynamicContextSettings
+                    config={config}
+                    onChange={(patch) => setConfig((previous) => previous ? { ...previous, ...patch } : previous)}
+                  />
+                )}
               </Section>
             </>
           )}

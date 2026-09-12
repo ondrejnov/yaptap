@@ -15,6 +15,7 @@ The main difference from regular transcription is context. YapTap can pass a cus
 - **Screen context**: an optional screenshot is sent to an OpenAI-compatible multimodal LLM endpoint, which extracts keywords and terms for more accurate transcription.
 - **Custom transcription prompt**: you can explain to the model what project, language, or domain you are working in.
 - **Custom vocabulary**: specific words, names, abbreviations, and technical terms are appended to the transcription prompt.
+- **Dynamic transcription context**: load fresh vocabulary from a URL or a local script (for example, Python) at the start of each recording, alongside the fixed prompt, custom vocabulary, and optional screen context.
 - **AI post-processing**: the finished transcript can be sent to another OpenAI-compatible model for grammar, punctuation, formatting, or style transformations.
 - **External data in post-processing**: the prompt can contain `{{data}}`, which is replaced with text downloaded from a custom URL. Useful for pulling in recently opened IDE files or database table and column names.
 - **Audio ducking**: system volume is temporarily lowered to the configured level while recording.
@@ -50,6 +51,17 @@ The main difference from regular transcription is context. YapTap can pass a cus
 - **OpenAI API key**: stored in settings or loaded from `OPENAI_API_KEY`.
 - **Transcription prompt**: persistent transcription context, such as technologies, project, domain, or dictation style.
 - **Custom vocabulary**: a list of terms that should be preferred during transcription.
+- **Dynamic context**: an opt-in switch directly below custom vocabulary. Choose **URL** to fetch UTF-8 text with `GET`, or **Script** to run a local script and use its UTF-8 standard output. **Try and show context** previews the current fields without saving them.
+
+For a Python script, set the interpreter to `python`, `python3`, or the absolute path to a virtual environment's Python executable. Enter the absolute script path separately, without quotes, and put each optional script argument on its own line (also without surrounding quotes). Scripts run in their own directory with no shell; write context using `print(...)` and send diagnostic output to stderr. Other interpreters, such as `node`, work too.
+
+For example, a script that extracts terms from your own screen activity data can return:
+
+```python
+print("YapTap, TypeScript, customer_id, objednávka")
+```
+
+Dynamic context loads once per recording, in parallel with the optional screenshot reader. Requests and scripts have a 10-second timeout and a 64 KiB output limit; at most the first 8,000 characters of the trimmed context are added to the transcription prompt. Empty output, HTTP errors, failed scripts, or timeouts skip the dynamic context for that recording. Static vocabulary and the rest of transcription continue normally. Save settings to apply the source to subsequent recordings.
 
 ### Screen Context
 
@@ -117,6 +129,7 @@ Useful commands:
 
 ```bash
 npm run typecheck  # type checking for both node and web parts
+npm test           # dynamic context: HTTP, scripts, prompt composition, and timeouts
 npm run build      # typecheck + electron-vite build into out/
 npm run start      # preview the build
 npm run package    # build + electron-builder
